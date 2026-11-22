@@ -1,133 +1,106 @@
 #include "../include/Vehicle.h"
-#include <iomanip>
-#include <sstream>
+#include "../include/Common.h"
+#include <cstdio>
 
-Vehicle::Vehicle(const std::string& id, const std::string& typeName, double capacity,
-                 double currentLoad, bool available, const std::string& currentLocation,
-                 const std::string& status, double fuelPerKm)
-    : id(id), typeName(typeName), capacity(capacity), currentLoad(currentLoad),
-      available(available), currentLocation(currentLocation), status(status),
-      fuelPerKm(fuelPerKm) {}
+using namespace std;
 
-bool Vehicle::canAccommodate(double additionalWaste) const {
-    if (!available) return false;
-    return (currentLoad + additionalWaste) <= getEffectiveCapacity();
+Vehicle::Vehicle(string id, double capacity, double currentLoad,
+                 bool available, string location, string status) {
+    this->id = cleanText(id);
+    this->capacity = capacity;
+    this->currentLoad = currentLoad;
+    this->available = available;
+    this->location = cleanText(location);
+    this->status = cleanText(status);
 }
 
-bool Vehicle::loadWaste(double wasteAmount) {
-    if (canAccommodate(wasteAmount)) {
-        currentLoad += wasteAmount;
-        return true;
-    }
-    return false;
+bool Vehicle::canCarry(double extraWaste) const {
+    if (!available) return false;
+    return (currentLoad + extraWaste) <= getEffectiveCapacity();
+}
+
+bool Vehicle::loadWaste(double waste) {
+    if (!canCarry(waste)) return false;
+    currentLoad = currentLoad + waste;
+    return true;
 }
 
 void Vehicle::resetLoad() {
-    currentLoad = 0.0;
+    currentLoad = 0;
     available = true;
     status = "Available";
-    currentLocation = "Depot";
+    location = "Depot";
 }
 
-void Vehicle::displayTableRow() const {
-    std::cout << "| " << std::left << std::setw(6) << id
-              << "| " << std::setw(18) << getTypeDescription()
-              << "| " << std::right << std::setw(6) << std::fixed << std::setprecision(1) << capacity << " kg"
-              << " | " << std::setw(6) << std::fixed << std::setprecision(1) << currentLoad << " kg"
-              << " | " << std::setw(6) << std::fixed << std::setprecision(1) << getRemainingCapacity() << " kg"
-              << " | " << std::setw(15) << (available ? (Color::GREEN + "Yes" + Color::RESET) : (Color::RED + "No " + Color::RESET))
-              << " | " << std::left << std::setw(14) << currentLocation
-              << "| " << std::setw(12) << status
-              << " |\n";
+void Vehicle::displayRow() const {
+    printf("| %-6s| %-20s| %8.1f | %8.1f | %7.1f | %9.1f | %-4s| %-14s| %-10s |\n",
+           id.c_str(), getTypeName().c_str(), capacity, getEffectiveCapacity(),
+           currentLoad, getFreeSpace(), (available ? "Yes" : "No"),
+           location.c_str(), status.c_str());
 }
 
-void Vehicle::displayCard() const {
-    std::cout << "------------------------------------------\n";
-    std::cout << "Vehicle ID:         " << id << "\n";
-    std::cout << "Type:               " << getTypeDescription() << "\n";
-    std::cout << "Nominal Capacity:   " << capacity << " kg\n";
-    std::cout << "Effective Capacity: " << getEffectiveCapacity() << " kg\n";
-    std::cout << "Current Load:       " << currentLoad << " kg\n";
-    std::cout << "Remaining Space:    " << getRemainingCapacity() << " kg\n";
-    std::cout << "Available:          " << (available ? "Yes" : "No") << "\n";
-    std::cout << "Location:           " << currentLocation << "\n";
-    std::cout << "Status:             " << status << "\n";
-    std::cout << "------------------------------------------\n";
+string Vehicle::toCSV() const {
+    return id + ",Standard," + numberToText(capacity) + "," + numberToText(currentLoad) +
+           "," + (available ? "1" : "0") + "," + location + "," + status + ",0";
 }
 
-std::string Vehicle::toCSV() const {
-    std::ostringstream oss;
-    oss << id << ",Generic," << capacity << "," << currentLoad << ","
-        << (available ? 1 : 0) << "," << currentLocation << "," << status << ",1.0";
-    return oss.str();
+// ---------------- CompactorTruck ----------------
+
+CompactorTruck::CompactorTruck(string id, double capacity, double currentLoad,
+                               bool available, string location, string status,
+                               double compactionFactor)
+    : Vehicle(id, capacity, currentLoad, available, location, status) {
+    this->compactionFactor = compactionFactor;
 }
 
-// Derived: StandardCompactorTruck
-StandardCompactorTruck::StandardCompactorTruck(
-    const std::string& id, double capacity, double currentLoad,
-    bool available, const std::string& currentLocation,
-    const std::string& status, double compactionFactor)
-    : Vehicle(id, "CompactorTruck", capacity, currentLoad, available, currentLocation, status, 0.28),
-      compactionFactor(compactionFactor) {}
-
-void StandardCompactorTruck::displayTableRow() const {
-    Vehicle::displayTableRow();
+string CompactorTruck::toCSV() const {
+    return id + ",Compactor," + numberToText(capacity) + "," + numberToText(currentLoad) +
+           "," + (available ? "1" : "0") + "," + location + "," + status + "," +
+           numberToText(compactionFactor);
 }
 
-std::string StandardCompactorTruck::toCSV() const {
-    std::ostringstream oss;
-    oss << id << ",Compactor," << capacity << "," << currentLoad << ","
-        << (available ? 1 : 0) << "," << currentLocation << "," << status << "," << compactionFactor;
-    return oss.str();
+// ---------------- ElectricMiniTruck ----------------
+
+ElectricMiniTruck::ElectricMiniTruck(string id, double capacity, double currentLoad,
+                                     bool available, string location, string status,
+                                     int batteryPercent)
+    : Vehicle(id, capacity, currentLoad, available, location, status) {
+    this->batteryPercent = batteryPercent;
 }
 
-// Derived: ElectricMiniTruck
-ElectricMiniTruck::ElectricMiniTruck(
-    const std::string& id, double capacity, double currentLoad,
-    bool available, const std::string& currentLocation,
-    const std::string& status, int batteryLevel)
-    : Vehicle(id, "ElectricMini", capacity, currentLoad, available, currentLocation, status, 0.12),
-      batteryLevelPercent(batteryLevel) {}
-
-void ElectricMiniTruck::displayTableRow() const {
-    Vehicle::displayTableRow();
+string ElectricMiniTruck::toCSV() const {
+    return id + ",Electric," + numberToText(capacity) + "," + numberToText(currentLoad) +
+           "," + (available ? "1" : "0") + "," + location + "," + status + "," +
+           numberToText(batteryPercent);
 }
 
-std::string ElectricMiniTruck::toCSV() const {
-    std::ostringstream oss;
-    oss << id << ",Electric," << capacity << "," << currentLoad << ","
-        << (available ? 1 : 0) << "," << currentLocation << "," << status << "," << batteryLevelPercent;
-    return oss.str();
-}
+// Reads: V01,Compactor,500,0,1,Depot,Available,1.25
+// The Type column decides which class of object is created.
+Vehicle* Vehicle::fromCSV(string line) {
+    string parts[8];
+    int count = splitLine(line, parts, 8);
+    if (count < 8) return NULL;
 
-Vehicle* Vehicle::fromCSV(const std::string& line) {
-    std::stringstream ss(line);
-    std::string id, type, capStr, loadStr, availStr, loc, status, extraStr;
+    double capacity, load, extra;
+    if (parts[0] == "") return NULL;
+    if (!textToNumber(parts[2], capacity)) return NULL;
+    if (!textToNumber(parts[3], load)) return NULL;
+    if (capacity <= 0) return NULL;
+    if (!textToNumber(parts[7], extra)) extra = 0;
 
-    if (std::getline(ss, id, ',') &&
-        std::getline(ss, type, ',') &&
-        std::getline(ss, capStr, ',') &&
-        std::getline(ss, loadStr, ',') &&
-        std::getline(ss, availStr, ',') &&
-        std::getline(ss, loc, ',') &&
-        std::getline(ss, status, ',')) {
+    string id = parts[0];
+    string type = parts[1];
+    bool available = (parts[4] == "1");
+    string location = parts[5];
+    string status = parts[6];
 
-        std::getline(ss, extraStr);
-        if (!extraStr.empty() && extraStr.back() == '\r') extraStr.pop_back();
-
-        double cap = std::stod(capStr);
-        double load = std::stod(loadStr);
-        bool avail = (availStr == "1" || availStr == "true" || availStr == "Yes");
-
-        if (type == "Compactor") {
-            double comp = extraStr.empty() ? 1.25 : std::stod(extraStr);
-            return new StandardCompactorTruck(id, cap, load, avail, loc, status, comp);
-        } else if (type == "Electric") {
-            int batt = extraStr.empty() ? 100 : std::stoi(extraStr);
-            return new ElectricMiniTruck(id, cap, load, avail, loc, status, batt);
-        } else {
-            return new Vehicle(id, "StandardTruck", cap, load, avail, loc, status);
-        }
+    if (type == "Compactor") {
+        double factor = (extra >= 1.0) ? extra : 1.25;
+        return new CompactorTruck(id, capacity, load, available, location, status, factor);
     }
-    return nullptr;
+    if (type == "Electric") {
+        int battery = (extra > 0) ? (int)extra : 100;
+        return new ElectricMiniTruck(id, capacity, load, available, location, status, battery);
+    }
+    return new Vehicle(id, capacity, load, available, location, status);
 }
