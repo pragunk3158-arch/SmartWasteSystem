@@ -1,136 +1,82 @@
 #ifndef VEHICLE_H
 #define VEHICLE_H
 
-#include "Common.h"
 #include <string>
-#include <iostream>
 
-// ============================================================================
-// OOP CONCEPT: INHERITANCE & POLYMORPHISM
-// Base Class: Vehicle
-// Demonstrates:
-// - Encapsulation (protected fields, public accessors)
-// - Virtual methods for Polymorphism
-// - Virtual destructor
-// ============================================================================
+// Base class of all collection vehicles.
+// Shows inheritance and polymorphism: the two derived classes below
+// override getEffectiveCapacity() and getTypeName().
 class Vehicle {
 protected:
     std::string id;
-    std::string typeName;
-    double capacity;       // nominal capacity in kg
-    double currentLoad;    // current payload in kg
+    double capacity;        // kg written on the truck
+    double currentLoad;     // kg already loaded
     bool available;
-    std::string currentLocation;
-    std::string status;    // "Available", "On Route", "Maintenance"
-    double fuelPerKm;      // liters of fuel / kWh per km
+    std::string location;
+    std::string status;     // "Available", "On Route", "Completed"
 
 public:
-    Vehicle(const std::string& id, const std::string& typeName, double capacity,
-            double currentLoad = 0.0, bool available = true,
-            const std::string& currentLocation = "Depot",
-            const std::string& status = "Available", double fuelPerKm = 0.25);
+    Vehicle(std::string id, double capacity, double currentLoad = 0,
+            bool available = true, std::string location = "Depot",
+            std::string status = "Available");
 
     virtual ~Vehicle() {}
 
-    // Polymorphic method: derived vehicles calculate effective capacity differently
+    // Overridden by the derived classes
     virtual double getEffectiveCapacity() const { return capacity; }
-    virtual double getCompactionRatio() const { return 1.0; }
-    virtual std::string getTypeDescription() const { return typeName; }
+    virtual std::string getTypeName() const { return "Standard Truck"; }
+    virtual std::string toCSV() const;
 
-    // Capacity checking
-    bool canAccommodate(double additionalWaste) const;
-    bool loadWaste(double wasteAmount);
+    // Capacity checks
+    bool canCarry(double extraWaste) const;
+    bool loadWaste(double waste);
     void resetLoad();
 
     // Getters
     std::string getId() const { return id; }
-    std::string getTypeName() const { return typeName; }
     double getCapacity() const { return capacity; }
     double getCurrentLoad() const { return currentLoad; }
-    double getRemainingCapacity() const { return getEffectiveCapacity() - currentLoad; }
+    double getFreeSpace() const { return getEffectiveCapacity() - currentLoad; }
     bool isAvailable() const { return available; }
-    std::string getCurrentLocation() const { return currentLocation; }
+    std::string getLocation() const { return location; }
     std::string getStatus() const { return status; }
-    double getFuelPerKm() const { return fuelPerKm; }
 
     // Setters
-    void setAvailable(bool avail) { available = avail; }
-    void setCurrentLocation(const std::string& loc) { currentLocation = loc; }
-    void setStatus(const std::string& stat) { status = stat; }
-    void setCurrentLoad(double load) { currentLoad = load; }
+    void setStatus(std::string s) { status = s; }
 
-    // Display
-    virtual void displayTableRow() const;
-    virtual void displayCard() const;
+    void displayRow() const;
 
-    // File Serialization
-    virtual std::string toCSV() const;
-    static Vehicle* fromCSV(const std::string& line);
+    // Reads one line of vehicles.txt and creates the right type of object
+    static Vehicle* fromCSV(std::string line);
 };
 
-// ============================================================================
-// DERIVED CLASS 1: StandardCompactorTruck
-// Demonstrates:
-// - Inheritance (is-a Vehicle)
-// - Method overriding (polymorphism for compaction factor)
-// ============================================================================
-class StandardCompactorTruck : public Vehicle {
+// Can press the waste, so it carries more than its written capacity
+class CompactorTruck : public Vehicle {
 private:
-    double compactionFactor; // e.g., 1.25 (can compress waste)
+    double compactionFactor;   // e.g. 1.25 means 25% extra
 
 public:
-    StandardCompactorTruck(const std::string& id, double capacity,
-                           double currentLoad = 0.0, bool available = true,
-                           const std::string& currentLocation = "Depot",
-                           const std::string& status = "Available",
-                           double compactionFactor = 1.25);
+    CompactorTruck(std::string id, double capacity, double currentLoad = 0,
+                   bool available = true, std::string location = "Depot",
+                   std::string status = "Available", double compactionFactor = 1.25);
 
-    double getEffectiveCapacity() const override {
-        return capacity * compactionFactor;
-    }
-
-    double getCompactionRatio() const override {
-        return compactionFactor;
-    }
-
-    std::string getTypeDescription() const override {
-        return "Compactor Truck (" + std::to_string((int)((compactionFactor - 1.0) * 100)) + "% comp.)";
-    }
-
-    void displayTableRow() const override;
-    std::string toCSV() const override;
+    double getEffectiveCapacity() const { return capacity * compactionFactor; }
+    std::string getTypeName() const { return "Compactor Truck"; }
+    std::string toCSV() const;
 };
 
-// ============================================================================
-// DERIVED CLASS 2: ElectricMiniTruck
-// Demonstrates:
-// - Inheritance (is-a Vehicle)
-// - Eco-friendly campus vehicle with lower emissions
-// ============================================================================
+// Small battery vehicle used inside the campus
 class ElectricMiniTruck : public Vehicle {
 private:
-    int batteryLevelPercent;
+    int batteryPercent;
 
 public:
-    ElectricMiniTruck(const std::string& id, double capacity,
-                      double currentLoad = 0.0, bool available = true,
-                      const std::string& currentLocation = "Depot",
-                      const std::string& status = "Available",
-                      int batteryLevel = 100);
+    ElectricMiniTruck(std::string id, double capacity, double currentLoad = 0,
+                      bool available = true, std::string location = "Depot",
+                      std::string status = "Available", int batteryPercent = 100);
 
-    double getEffectiveCapacity() const override {
-        return capacity; // standard uncompacted
-    }
-
-    std::string getTypeDescription() const override {
-        return "Electric Mini-Truck (EV)";
-    }
-
-    int getBatteryLevel() const { return batteryLevelPercent; }
-    void setBatteryLevel(int b) { batteryLevelPercent = b; }
-
-    void displayTableRow() const override;
-    std::string toCSV() const override;
+    std::string getTypeName() const { return "Electric Mini Truck"; }
+    std::string toCSV() const;
 };
 
-#endif // VEHICLE_H
+#endif
