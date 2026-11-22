@@ -1,133 +1,109 @@
 #include "../include/Bin.h"
-#include <iomanip>
-#include <sstream>
+#include <cstdio>
 
-Bin::Bin()
-    : id(""), location(""), capacity(100.0), currentWaste(0.0),
-      fillPercentage(0.0), fillRate(5.0), priority(PriorityLevel::LOW),
-      urgencyScore(0.0), status("Pending") {
+using namespace std;
+
+Bin::Bin() {
+    id = "";
+    location = "";
+    capacity = 100;
+    currentWaste = 0;
+    fillRate = 5;
+    status = "Pending";
     calculatePriority();
 }
 
-Bin::Bin(const std::string& id, const std::string& location, double capacity,
-         double currentWaste, double fillRate, const std::string& status)
-    : id(id), location(location), capacity(capacity), currentWaste(currentWaste),
-      fillRate(fillRate), status(status) {
+Bin::Bin(string id, string location, double capacity,
+         double currentWaste, double fillRate, string status) {
+    this->id = cleanText(id);
+    this->location = cleanText(location);
+    this->capacity = capacity;
+    this->fillRate = fillRate;
+    this->status = status;
+
+    // a bin can never hold more than its capacity
+    if (currentWaste < 0) currentWaste = 0;
+    if (currentWaste > capacity) currentWaste = capacity;
+    this->currentWaste = currentWaste;
+
     calculatePriority();
 }
 
 void Bin::calculatePriority() {
-    if (capacity <= 0.0) {
-        fillPercentage = 0.0;
-    } else {
-        fillPercentage = (currentWaste / capacity) * 100.0;
-    }
+    if (capacity <= 0)
+        fillPercent = 0;
+    else
+        fillPercent = (currentWaste / capacity) * 100;
 
-    if (fillPercentage > 100.0) fillPercentage = 100.0;
-    if (fillPercentage < 0.0) fillPercentage = 0.0;
+    if (fillPercent > 100) fillPercent = 100;
+    if (fillPercent < 0) fillPercent = 0;
 
-    // College Specification:
-    // 90% or above -> CRITICAL
-    // 75% to 89% -> HIGH
-    // 50% to 74% -> MEDIUM
-    // Below 50% -> LOW
-    if (fillPercentage >= 90.0) {
-        priority = PriorityLevel::CRITICAL;
-    } else if (fillPercentage >= 75.0) {
-        priority = PriorityLevel::HIGH;
-    } else if (fillPercentage >= 50.0) {
-        priority = PriorityLevel::MEDIUM;
-    } else {
-        priority = PriorityLevel::LOW;
-    }
+    if (fillPercent >= 90)      priority = CRITICAL;
+    else if (fillPercent >= 75) priority = HIGH;
+    else if (fillPercent >= 50) priority = MEDIUM;
+    else                        priority = LOW;
 
-    // Urgency formula combines fill percentage with daily fill rate risk
-    // High fill rate means faster overflow risk!
-    urgencyScore = fillPercentage + (fillRate * 1.5);
-    if (priority == PriorityLevel::CRITICAL) urgencyScore += 50.0; // Boost critical bins
+    // A bin that fills up fast becomes urgent sooner, so the fill rate is
+    // added to the score. Critical bins get an extra boost so that they
+    // always come out of the priority queue first.
+    urgencyScore = fillPercent + (fillRate * 1.5);
+    if (priority == CRITICAL) urgencyScore = urgencyScore + 50;
 }
 
 void Bin::setCurrentWaste(double waste) {
+    if (waste < 0) waste = 0;
+    if (waste > capacity) waste = capacity;
     currentWaste = waste;
-    if (currentWaste < 0.0) currentWaste = 0.0;
     calculatePriority();
-}
-
-void Bin::setFillRate(double rate) {
-    fillRate = rate;
-    calculatePriority();
-}
-
-void Bin::setStatus(const std::string& newStatus) {
-    status = newStatus;
-}
-
-void Bin::setLocation(const std::string& newLoc) {
-    location = newLoc;
-}
-
-void Bin::setCapacity(double newCap) {
-    if (newCap > 0.0) {
-        capacity = newCap;
-        calculatePriority();
-    }
 }
 
 void Bin::markCollected() {
-    currentWaste = 0.0;
+    currentWaste = 0;
     status = "Collected";
     calculatePriority();
 }
 
-void Bin::displayTableRow() const {
-    std::cout << "| " << std::left << std::setw(6) << id
-              << "| " << std::setw(17) << location
-              << "| " << std::right << std::setw(6) << std::fixed << std::setprecision(1) << capacity << " kg"
-              << " | " << std::setw(6) << std::fixed << std::setprecision(1) << currentWaste << " kg"
-              << " | " << std::setw(6) << std::fixed << std::setprecision(1) << fillPercentage << "%"
-              << " | " << std::setw(19) << priorityToColorString(priority)
-              << " | " << std::left << std::setw(10) << status
-              << " |\n";
+// printf is used for the tables because lining up columns with it is
+// much shorter than setw() from iomanip.
+void Bin::displayRow() const {
+    printf("| %-6s| %-17s| %7.1f | %7.1f | %5.1f%% | %-9s| %-10s |\n",
+           id.c_str(), location.c_str(), capacity, currentWaste, fillPercent,
+           priorityToString(priority).c_str(), status.c_str());
 }
 
-void Bin::displayCard() const {
-    std::cout << "------------------------------------------\n";
-    std::cout << "Bin ID:         " << id << "\n";
-    std::cout << "Location:       " << location << "\n";
-    std::cout << "Capacity:       " << capacity << " kg\n";
-    std::cout << "Current Waste:  " << currentWaste << " kg (" << fillPercentage << "%)\n";
-    std::cout << "Fill Rate:      " << fillRate << " kg/day\n";
-    std::cout << "Priority:       " << priorityToString(priority) << "\n";
-    std::cout << "Urgency Score:  " << std::fixed << std::setprecision(1) << urgencyScore << "\n";
-    std::cout << "Status:         " << status << "\n";
-    std::cout << "------------------------------------------\n";
+void Bin::displayDetails() const {
+    printf("------------------------------------------\n");
+    printf("Bin ID        : %s\n", id.c_str());
+    printf("Location      : %s\n", location.c_str());
+    printf("Capacity      : %.1f kg\n", capacity);
+    printf("Current Waste : %.1f kg (%.1f%%)\n", currentWaste, fillPercent);
+    printf("Fill Rate     : %.1f kg/day\n", fillRate);
+    printf("Priority      : %s\n", priorityToString(priority).c_str());
+    printf("Urgency Score : %.1f\n", urgencyScore);
+    printf("Status        : %s\n", status.c_str());
+    printf("------------------------------------------\n");
 }
 
-std::string Bin::toCSV() const {
-    std::ostringstream oss;
-    oss << id << "," << location << "," << capacity << ","
-        << currentWaste << "," << fillRate << "," << status;
-    return oss.str();
+string Bin::toCSV() const {
+    return id + "," + location + "," + numberToText(capacity) + "," +
+           numberToText(currentWaste) + "," + numberToText(fillRate) + "," + status;
 }
 
-Bin Bin::fromCSV(const std::string& line) {
-    std::stringstream ss(line);
-    std::string id, loc, capStr, wasteStr, rateStr, status;
-    
-    if (std::getline(ss, id, ',') &&
-        std::getline(ss, loc, ',') &&
-        std::getline(ss, capStr, ',') &&
-        std::getline(ss, wasteStr, ',') &&
-        std::getline(ss, rateStr, ',') &&
-        std::getline(ss, status)) {
-        
-        // Remove carriage returns if present
-        if (!status.empty() && status.back() == '\r') status.pop_back();
+// Reads one line like: B101,GEU Gate,100,90,8,Pending
+Bin Bin::fromCSV(string line) {
+    string parts[6];
+    int count = splitLine(line, parts, 6);
+    if (count < 6) return Bin();
 
-        double cap = std::stod(capStr);
-        double waste = std::stod(wasteStr);
-        double rate = std::stod(rateStr);
-        return Bin(id, loc, cap, waste, rate, status);
-    }
-    return Bin();
+    double capacity, waste, rate;
+    if (parts[0] == "") return Bin();
+    if (!textToNumber(parts[2], capacity)) return Bin();
+    if (!textToNumber(parts[3], waste)) return Bin();
+    if (!textToNumber(parts[4], rate)) return Bin();
+    if (capacity <= 0) return Bin();
+
+    string status = parts[5];
+    if (status == "") status = "Pending";
+
+    return Bin(parts[0], parts[1], capacity, waste, rate, status);
 }
