@@ -1,0 +1,12 @@
+# BinID,Location,Capacity(kg),CurrentWaste(kg),FillRate(kg/day),Status
+B101,GEU Gate,100,90,8,Pending
+B102,Hostel,150,82.5,6,Pending
+B103,Canteen,100,95,12,Pending
+B104,Library,80,32,3,Pending
+B105,Academic Block,120,96,7,Pending
+B106,Sports Complex,100,85,9,Pending
+B107,Parking,80,24,2,Pending
+B108,Market,150,138,14,Pending
+B109,Main Road,100,60,5,Pending
+B110,Residential Area,120,54,4,Pending
+1,1,1,0,1,Collected

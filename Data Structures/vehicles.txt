@@ -1,0 +1,5 @@
+# VehicleID,Type,Capacity,CurrentLoad,Available,Location,Status,Extra
+V01,Compactor,500,0,1,Depot,Available,1.25
+V02,Electric,300,0,1,Depot,Available,100
+V03,Compactor,800,0,1,Depot,Available,1.25
+V04,Generic,400,0,1,Depot,Available,1.0
