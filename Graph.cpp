@@ -1,311 +1,244 @@
 #include "../include/Graph.h"
-#include <queue>
-#include <limits>
-#include <algorithm>
-#include <iomanip>
-#include <sstream>
+#include <cstdio>
 
-Graph::Graph() {}
+using namespace std;
 
-void Graph::addLocation(const std::string& location) {
-    if (adjList.find(location) == adjList.end()) {
-        adjList[location] = std::vector<Edge>();
+const double BIG = 1000000.0;   // stands for "infinity"
+
+Graph::Graph() {
+    locationCount = 0;
+    for (int i = 0; i < MAX_LOCATIONS; i++) {
+        for (int j = 0; j < MAX_LOCATIONS; j++) {
+            distance[i][j] = 0;      // 0 means there is no road
+            blocked[i][j] = false;
+        }
     }
 }
 
-void Graph::addRoad(const std::string& from, const std::string& to, double distance,
-                    const std::string& roadName, bool bidirectional) {
+int Graph::findLocation(string name) const {
+    for (int i = 0; i < locationCount; i++) {
+        if (names[i] == name) return i;
+    }
+    return -1;
+}
+
+void Graph::addLocation(string name) {
+    if (name == "") return;
+    if (findLocation(name) >= 0) return;         // already on the map
+    if (locationCount >= MAX_LOCATIONS) return;  // table is full
+
+    names[locationCount] = name;
+    locationCount++;
+}
+
+// Roads are two way, so the table is filled on both sides.
+// A road from a place to itself, or with a length of zero or less, makes
+// no sense on a map and would confuse Dijkstra, so it is refused.
+void Graph::addRoad(string from, string to, double roadLength, string name) {
+    from = cleanText(from);
+    to = cleanText(to);
+    name = cleanText(name);
+
+    if (from == "" || to == "" || from == to) return;
+    if (roadLength <= 0) return;
+
     addLocation(from);
     addLocation(to);
 
-    // Check if edge already exists
-    bool exists = false;
-    for (auto& edge : adjList[from]) {
-        if (edge.destination == to) {
-            edge.distance = distance;
-            edge.roadName = roadName;
-            exists = true;
-            break;
-        }
-    }
-    if (!exists) {
-        adjList[from].push_back(Edge(to, distance, false, roadName));
-    }
+    int a = findLocation(from);
+    int b = findLocation(to);
+    if (a < 0 || b < 0) return;       // the map was already full
 
-    if (bidirectional) {
-        bool revExists = false;
-        for (auto& edge : adjList[to]) {
-            if (edge.destination == from) {
-                edge.distance = distance;
-                edge.roadName = roadName;
-                revExists = true;
-                break;
-            }
-        }
-        if (!revExists) {
-            adjList[to].push_back(Edge(from, distance, false, roadName));
-        }
-    }
+    distance[a][b] = roadLength;
+    distance[b][a] = roadLength;
+    roadNames[a][b] = name;
+    roadNames[b][a] = name;
 }
 
-bool Graph::blockRoad(const std::string& from, const std::string& to) {
-    bool found = false;
-    if (adjList.find(from) != adjList.end()) {
-        for (auto& edge : adjList[from]) {
-            if (edge.destination == to) {
-                edge.isBlocked = true;
-                found = true;
-            }
-        }
-    }
-    if (adjList.find(to) != adjList.end()) {
-        for (auto& edge : adjList[to]) {
-            if (edge.destination == from) {
-                edge.isBlocked = true;
-                found = true;
-            }
-        }
-    }
-    return found;
+bool Graph::blockRoad(string from, string to) {
+    int a = findLocation(from);
+    int b = findLocation(to);
+    if (a < 0 || b < 0) return false;
+    if (distance[a][b] <= 0) return false;      // there is no such road
+
+    blocked[a][b] = true;
+    blocked[b][a] = true;
+    return true;
 }
 
-bool Graph::unblockRoad(const std::string& from, const std::string& to) {
-    bool found = false;
-    if (adjList.find(from) != adjList.end()) {
-        for (auto& edge : adjList[from]) {
-            if (edge.destination == to) {
-                edge.isBlocked = false;
-                found = true;
-            }
-        }
-    }
-    if (adjList.find(to) != adjList.end()) {
-        for (auto& edge : adjList[to]) {
-            if (edge.destination == from) {
-                edge.isBlocked = false;
-                found = true;
-            }
-        }
-    }
-    return found;
+bool Graph::unblockRoad(string from, string to) {
+    int a = findLocation(from);
+    int b = findLocation(to);
+    if (a < 0 || b < 0) return false;
+    if (distance[a][b] <= 0) return false;
+
+    blocked[a][b] = false;
+    blocked[b][a] = false;
+    return true;
 }
 
-bool Graph::isRoadBlocked(const std::string& from, const std::string& to) const {
-    auto it = adjList.find(from);
-    if (it != adjList.end()) {
-        for (const auto& edge : it->second) {
-            if (edge.destination == to) {
-                return edge.isBlocked;
-            }
-        }
-    }
-    return false;
-}
-
-std::vector<std::pair<std::string, std::string>> Graph::getBlockedRoads() const {
-    std::vector<std::pair<std::string, std::string>> blocked;
-    for (const auto& pair : adjList) {
-        for (const auto& edge : pair.second) {
-            if (edge.isBlocked && pair.first < edge.destination) {
-                blocked.push_back({pair.first, edge.destination});
-            }
-        }
-    }
-    return blocked;
-}
-
-bool Graph::hasLocation(const std::string& location) const {
-    return adjList.find(location) != adjList.end();
-}
-
-std::vector<std::string> Graph::getAllLocations() const {
-    std::vector<std::string> locs;
-    for (const auto& pair : adjList) {
-        locs.push_back(pair.first);
-    }
-    return locs;
+bool Graph::isRoadBlocked(string from, string to) const {
+    int a = findLocation(from);
+    int b = findLocation(to);
+    if (a < 0 || b < 0) return false;
+    return blocked[a][b];
 }
 
 int Graph::getRoadCount() const {
     int total = 0;
-    for (const auto& pair : adjList) {
-        total += static_cast<int>(pair.second.size());
+    for (int i = 0; i < locationCount; i++) {
+        for (int j = i + 1; j < locationCount; j++) {
+            if (distance[i][j] > 0) total++;
+        }
     }
-    return total / 2; // bidirectional pairs
+    return total;
 }
 
-// ============================================================================
+// ===========================================================================
 // DIJKSTRA'S SHORTEST PATH ALGORITHM
-// - Uses a min-priority queue storing (distance, location)
-// - Maintains dist map and parent map
-// - Disregards blocked edges
-// ============================================================================
-std::pair<double, std::vector<std::string>> Graph::dijkstra(
-    const std::string& start, const std::string& destination) const {
+//
+// best[x]   = shortest length found so far from start to x
+// parent[x] = the location we came from, used to rebuild the path
+// done[x]   = true once the answer for x is final
+//
+// In every round the unfinished location with the smallest best value is
+// picked, and all its open roads are checked to see if they give a shorter
+// way to a neighbour. Blocked roads are skipped, and that one line is what
+// makes dynamic re-routing work.
+// ===========================================================================
+double Graph::shortestPath(string start, string end, vector<string>& path) const {
+    path.clear();
 
-    if (!hasLocation(start) || !hasLocation(destination)) {
-        return {-1.0, {}};
+    int s = findLocation(start);
+    int e = findLocation(end);
+    if (s < 0 || e < 0) return -1;
+
+    if (s == e) {
+        path.push_back(start);
+        return 0;
     }
 
-    if (start == destination) {
-        return {0.0, {start}};
+    double best[MAX_LOCATIONS];
+    int parent[MAX_LOCATIONS];
+    bool done[MAX_LOCATIONS];
+
+    for (int i = 0; i < locationCount; i++) {
+        best[i] = BIG;
+        parent[i] = -1;
+        done[i] = false;
     }
+    best[s] = 0;
 
-    const double INF = std::numeric_limits<double>::infinity();
-    std::map<std::string, double> dist;
-    std::map<std::string, std::string> parent;
+    for (int round = 0; round < locationCount; round++) {
+        // 1. find the nearest location that is not finished yet
+        int u = -1;
+        double smallest = BIG;
+        for (int i = 0; i < locationCount; i++) {
+            if (!done[i] && best[i] < smallest) {
+                smallest = best[i];
+                u = i;
+            }
+        }
+        if (u == -1) break;        // the rest of the map cannot be reached
+        done[u] = true;
+        if (u == e) break;         // the answer for the end point is final
 
-    for (const auto& pair : adjList) {
-        dist[pair.first] = INF;
-    }
+        // 2. try to reach the neighbours of u through a shorter way
+        for (int v = 0; v < locationCount; v++) {
+            if (distance[u][v] <= 0) continue;    // no road between u and v
+            if (blocked[u][v]) continue;          // road is closed
 
-    // Min-heap Priority Queue of (distance, node)
-    typedef std::pair<double, std::string> DistNode;
-    std::priority_queue<DistNode, std::vector<DistNode>, std::greater<DistNode>> pq;
-
-    dist[start] = 0.0;
-    pq.push({0.0, start});
-
-    while (!pq.empty()) {
-        auto current = pq.top();
-        pq.pop();
-
-        double d = current.first;
-        std::string u = current.second;
-
-        // If we reached destination with optimal distance
-        if (u == destination) break;
-
-        if (d > dist[u]) continue;
-
-        auto it = adjList.find(u);
-        if (it == adjList.end()) continue;
-
-        for (const auto& edge : it->second) {
-            // CRITICAL FOR DYNAMIC RE-ROUTING:
-            // Skip road if marked blocked!
-            if (edge.isBlocked) continue;
-
-            std::string v = edge.destination;
-            double weight = edge.distance;
-
-            if (dist[u] + weight < dist[v]) {
-                dist[v] = dist[u] + weight;
+            if (best[u] + distance[u][v] < best[v]) {
+                best[v] = best[u] + distance[u][v];
                 parent[v] = u;
-                pq.push({dist[v], v});
             }
         }
     }
 
-    if (dist[destination] == INF) {
-        // No path exists (e.g. road network partitioned or blocked)
-        return {-1.0, {}};
+    if (best[e] >= BIG) return -1;    // no open path
+
+    // 3. walk back from the end to the start to build the path
+    vector<string> backwards;
+    int current = e;
+    while (current != -1) {
+        backwards.push_back(names[current]);
+        current = parent[current];
     }
 
-    // Reconstruct path backwards from destination to start
-    std::vector<std::string> path;
-    std::string curr = destination;
-    while (curr != start) {
-        path.push_back(curr);
-        curr = parent[curr];
-    }
-    path.push_back(start);
-    std::reverse(path.begin(), path.end());
+    for (int i = (int)backwards.size() - 1; i >= 0; i--)
+        path.push_back(backwards[i]);
 
-    return {dist[destination], path};
+    return best[e];
 }
 
-// Multi-stop tour visiting stops in sequence
-std::pair<double, std::vector<std::string>> Graph::calculateTour(
-    const std::vector<std::string>& stops) const {
-
-    if (stops.size() < 2) return {0.0, stops};
-
-    double totalDist = 0.0;
-    std::vector<std::string> fullPath;
-
-    for (size_t i = 0; i < stops.size() - 1; ++i) {
-        auto stepResult = dijkstra(stops[i], stops[i + 1]);
-        if (stepResult.first < 0) {
-            // Path broken!
-            return {-1.0, {}};
-        }
-        totalDist += stepResult.first;
-
-        // Append to full path without duplicating joining nodes
-        if (i == 0) {
-            fullPath = stepResult.second;
-        } else {
-            for (size_t j = 1; j < stepResult.second.size(); ++j) {
-                fullPath.push_back(stepResult.second[j]);
-            }
-        }
+double Graph::buildTour(const vector<string>& stops, vector<string>& fullPath) const {
+    fullPath.clear();
+    if (stops.size() < 2) {
+        fullPath = stops;
+        return 0;
     }
 
-    return {totalDist, fullPath};
+    double total = 0;
+    for (int i = 0; i < (int)stops.size() - 1; i++) {
+        vector<string> part;
+        double length = shortestPath(stops[i], stops[i + 1], part);
+        if (length < 0) {
+            fullPath.clear();
+            return -1;
+        }
+        total = total + length;
+
+        // the first location of this part is the last of the previous one,
+        // so it is skipped to avoid writing it twice
+        int start = (i == 0) ? 0 : 1;
+        for (int j = start; j < (int)part.size(); j++)
+            fullPath.push_back(part[j]);
+    }
+    return total;
 }
 
-void Graph::displayGraph() const {
-    std::cout << "\n======================================================\n";
-    std::cout << "                 CAMPUS ROAD NETWORK GRAPH            \n";
-    std::cout << "======================================================\n";
-    std::cout << "Total Locations: " << getLocationCount()
-              << " | Total Roads: " << getRoadCount() << "\n\n";
+void Graph::display() const {
+    printf("\n======================================================\n");
+    printf("                  ROAD NETWORK GRAPH                  \n");
+    printf("======================================================\n");
+    printf("Locations: %d | Roads: %d\n\n", locationCount, getRoadCount());
 
-    for (const auto& pair : adjList) {
-        std::cout << Color::CYAN << "[" << pair.first << "]" << Color::RESET << "\n";
-        for (const auto& edge : pair.second) {
-            std::cout << "   --> " << std::left << std::setw(18) << edge.destination
-                      << " (" << std::fixed << std::setprecision(1) << edge.distance << " km)";
-            if (edge.isBlocked) {
-                std::cout << "  " << Color::RED << "[BLOCKED]" << Color::RESET;
-            } else {
-                std::cout << "  " << Color::GREEN << "[OPEN]" << Color::RESET;
-            }
-            if (!edge.roadName.empty()) {
-                std::cout << " - " << edge.roadName;
-            }
-            std::cout << "\n";
+    for (int i = 0; i < locationCount; i++) {
+        printf("[%s]\n", names[i].c_str());
+        for (int j = 0; j < locationCount; j++) {
+            if (distance[i][j] <= 0) continue;
+            printf("   --> %-18s (%.1f km) %-10s %s\n",
+                   names[j].c_str(), distance[i][j],
+                   blocked[i][j] ? "[BLOCKED]" : "[OPEN]",
+                   roadNames[i][j].c_str());
         }
     }
-    std::cout << "======================================================\n";
+    printf("======================================================\n");
 }
 
-std::vector<std::string> Graph::toCSVLines() const {
-    std::vector<std::string> lines;
-    for (const auto& pair : adjList) {
-        for (const auto& edge : pair.second) {
-            // Only output one direction to avoid duplication in file
-            if (pair.first < edge.destination) {
-                std::ostringstream oss;
-                oss << pair.first << "," << edge.destination << ","
-                    << edge.distance << "," << (edge.isBlocked ? 1 : 0) << ","
-                    << (edge.roadName.empty() ? "Road" : edge.roadName);
-                lines.push_back(oss.str());
-            }
+// Writes every road only once (j starts after i) so the file has no duplicates
+vector<string> Graph::toCSVLines() const {
+    vector<string> lines;
+    for (int i = 0; i < locationCount; i++) {
+        for (int j = i + 1; j < locationCount; j++) {
+            if (distance[i][j] <= 0) continue;
+            lines.push_back(names[i] + "," + names[j] + "," +
+                            numberToText(distance[i][j]) + "," +
+                            (blocked[i][j] ? "1" : "0") + "," + roadNames[i][j]);
         }
     }
     return lines;
 }
 
-void Graph::loadRoadLine(const std::string& line, Graph& g) {
-    std::stringstream ss(line);
-    std::string from, to, distStr, blockedStr, roadName;
+// Reads: Depot,GEU Gate,3.5,0,North Link
+void Graph::addRoadFromCSV(string line) {
+    string parts[5];
+    int count = splitLine(line, parts, 5);
+    if (count < 5) return;
 
-    if (std::getline(ss, from, ',') &&
-        std::getline(ss, to, ',') &&
-        std::getline(ss, distStr, ',') &&
-        std::getline(ss, blockedStr, ',')) {
+    double roadLength;
+    if (!textToNumber(parts[2], roadLength)) return;
 
-        std::getline(ss, roadName);
-        if (!roadName.empty() && roadName.back() == '\r') roadName.pop_back();
-
-        double dist = std::stod(distStr);
-        bool blocked = (blockedStr == "1" || blockedStr == "true");
-
-        g.addRoad(from, to, dist, roadName, true);
-        if (blocked) {
-            g.blockRoad(from, to);
-        }
-    }
+    addRoad(parts[0], parts[1], roadLength, parts[4]);
+    if (parts[3] == "1") blockRoad(parts[0], parts[1]);
 }
